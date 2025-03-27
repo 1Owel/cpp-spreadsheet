@@ -13,8 +13,12 @@ struct Position {
     int row = 0;
     int col = 0;
 
-    bool operator==(Position rhs) const;
-    bool operator<(Position rhs) const;
+    bool operator==(const Position& rhs) const {
+        return row == rhs.row && col == rhs.col;
+    }
+    bool operator<(Position rhs) const {
+        return std::tie(row, col) < std::tie(rhs.row, rhs.col);
+    }
 
     bool IsValid() const;
     std::string ToString() const;
@@ -39,22 +43,40 @@ public:
     enum class Category {
         Ref,    // ссылка на ячейку с некорректной позицией
         Value,  // ячейка не может быть трактована как число
-        Div0,  // в результате вычисления возникло деление на ноль
+        Arithmetic,  // в результате вычисления возникло деление на ноль
     };
 
-    FormulaError(Category category);
+    FormulaError(Category category) : category_(category) {}
 
-    Category GetCategory() const;
+    Category GetCategory() const {
+        return category_;
+    }
 
-    bool operator==(FormulaError rhs) const;
+    bool operator==(FormulaError rhs) const {
+        return category_ == rhs.category_;
+    }
 
-    std::string_view ToString() const;
+    std::string_view ToString() const {
+        using namespace std::literals;
+        switch (category_) {
+            case Category::Ref:
+                return "#REF!"sv;
+            case Category::Value:
+                return "#VALUE!"sv;
+            case Category::Arithmetic:
+                return "#ARITHM!"sv;
+            default:
+                return ""sv;
+        }
+    }
 
 private:
     Category category_;
 };
 
-std::ostream& operator<<(std::ostream& output, FormulaError fe);
+std::ostream& operator<<(std::ostream& output, FormulaError fe) {
+    return output << fe.ToString();
+}
 
 // Исключение, выбрасываемое при попытке передать в метод некорректную позицию
 class InvalidPositionException : public std::out_of_range {
