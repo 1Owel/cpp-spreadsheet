@@ -11,10 +11,27 @@
 
 using namespace std;
 
-void Sheet::SetCell(Position pos, std::string text) {
+inline void InvalidPositionCheck(Position pos) const {
     if (!pos.IsValid()) {
         throw InvalidPositionException("Invalid position");
     }
+}
+
+void Sheet::UpdateSheetSize(Position pos) {
+    int row = pos.row;
+    int col = pos.col;
+
+    if (row_counts_[row]++ == 0) {
+        rows_.insert(row);
+    }
+
+    if (col_counts_[col]++ == 0) {
+        cols_.insert(col);
+    }
+}
+
+void Sheet::SetCell(Position pos, std::string text) {
+    InvalidPositionCheck(pos);
 
     if (text.empty()) {
         ClearCell(pos);
@@ -22,41 +39,22 @@ void Sheet::SetCell(Position pos, std::string text) {
     }
 
     auto cell = make_unique<Cell>(*this);
-    try {
-        cell->Set(text);
-        auto new_deps = cell->GetReferencedCells();
-        CheckCircularDependency(pos, new_deps);
-        UpdateDependencies(pos, new_deps);
-        InvalidateCacheForDependents(pos);
-    } catch (const CircularDependencyException&) {
-        throw;
-    }
+    cell->Set(pos, text); // Передаём позицию в Cell::Set
 
-    // Удаляем существующую ячейку, если есть
+    // Удаляем старую ячейку
     if (cells_.count(pos)) {
         ClearCell(pos);
     }
 
     cells_[pos] = move(cell);
+    InvalidateCacheForDependents(pos); // Инвалидация кэша
 
-    int row = pos.row;
-    int col = pos.col;
-
-    // Обновляем строки
-    if (row_counts_[row]++ == 0) {
-        rows_.insert(row);
-    }
-
-    // Обновляем столбцы
-    if (col_counts_[col]++ == 0) {
-        cols_.insert(col);
-    }
+    // Обновляем строки и столбцы
+    UpdateSheetSize(pos);
 }
 
 const CellInterface* Sheet::GetCell(Position pos) const {
-    if (!pos.IsValid()) {
-        throw InvalidPositionException("Invalid position");
-    }
+    InvalidPositionCheck(pos);
     auto it = cells_.find(pos);
     return it != cells_.end() ? it->second.get() : nullptr;
 }
@@ -66,9 +64,7 @@ CellInterface* Sheet::GetCell(Position pos) {
 }
 
 void Sheet::ClearCell(Position pos) {
-    if (!pos.IsValid()) {
-        throw InvalidPositionException("Invalid position");
-    }
+    InvalidPositionCheck(pos);
 
     auto it = cells_.find(pos);
     if (it == cells_.end()) {

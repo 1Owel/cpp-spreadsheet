@@ -1,5 +1,6 @@
 #include "cell.h"
 #include "formula.h"
+#include "sheet.h"
 
 #include <stdexcept>
 #include <string>
@@ -31,7 +32,7 @@ public:
     }
 
     std::string GetText() const override { 
-        return escaped_ ? "'" + text_ : text_;
+        return escaped_ ? ESCAPE_SIGN + text_ : text_;
     }
 
 private:
@@ -51,7 +52,7 @@ public:
     }
 
     std::string GetText() const override { 
-        return "=" + formula_->GetExpression(); 
+        return FORMULA_SIGN + formula_->GetExpression(); 
     }
 
     std::vector<Position> GetReferencedCells() const {
@@ -71,7 +72,7 @@ Cell::Cell(SheetInterface& sheet)
 
 Cell::~Cell() = default;
 
-void Cell::Set(std::string text) {
+void Cell::Set(Position pos, std::string text) {
     std::unique_ptr<Impl> new_impl;
 
     try {
@@ -79,13 +80,30 @@ void Cell::Set(std::string text) {
             new_impl = std::make_unique<EmptyImpl>();
         }
         // Формула: начинается с '=' и имеет длину > 1
-        else if (text[0] == '=') {
+        else if (text[0] == FORMULA_SIGN) {
             std::string expr = text.substr(1);
             auto formula = ParseFormula(expr);
+            auto deps = formula->GetReferencedCells();
+            Sheet& sh = reinterpret_cast<Sheet&>(sheet_);
+
+            // Проверка валидности зависимостей
+            for (const auto& dep : deps) {
+                if (!dep.IsValid()) {
+                    throw FormulaException("Invalid cell position: " + dep.ToString());
+                }
+            }
+
+            // Проверка циклических зависимостей
+            sh.CheckCircularDependency(pos, deps);
+
+            // Обновление зависимостей через Sheet
+            sh.UpdateDependencies(pos, deps);
+
             new_impl = std::make_unique<FormulaImpl>(std::move(expr), std::move(formula), sheet_);
+            // SetCell выполнит проверки и очистку ячейки
         }
         // Текст с экранированием (начинается с апострофа)
-        else if (text[0] == '\'') {
+        else if (text[0] == ESCAPE_SIGN) {
             new_impl = std::make_unique<TextImpl>(text.substr(1), true);
         }
         // Обычный текст (включая строки с '=' внутри)

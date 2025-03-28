@@ -9,6 +9,7 @@
 
 class Sheet : public SheetInterface {
 public:
+    friend class Cell;
     ~Sheet() override = default;
 
     void SetCell(Position pos, std::string text) override;
@@ -41,4 +42,6 @@ private:
 
     std::unordered_map<Position, std::vector<Position>, PositionHash> dependencies_;
     std::unordered_map<Position, std::vector<Position>, PositionHash> reverse_dependencies_;
+
+    void UpdateSheetSize(Position pos);
 };

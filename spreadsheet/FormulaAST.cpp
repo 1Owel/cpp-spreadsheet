@@ -278,7 +278,9 @@ public:
             try {
                 size_t pos;
                 double num = std::stod(text, &pos);
-                if (pos != text.size()) throw FormulaError(FormulaError::Category::Value);
+                if (pos != text.size()) {
+                    throw FormulaError(FormulaError::Category::Value);
+                }
                 return num;
             } catch (...) {
                 throw FormulaError(FormulaError::Category::Value);
